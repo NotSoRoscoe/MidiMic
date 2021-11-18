@@ -1,8 +1,8 @@
 #ifndef MIDITRANSLATE_H
 #define MIDITRANSLATE_H
 
-#import <Arduino.h>
+	extern int rangeSize;
+	extern int minMidi;
+	int getMidiVal(float freq);
 
-
-int getMidiVal(float freq);
 #endif
