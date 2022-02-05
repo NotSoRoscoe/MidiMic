@@ -17,13 +17,13 @@
 #define CHANNEL 1
 #define VELOCITY 127
 #define MIN_MIDI_NOTE 44
-int note; 
+int note;
 int lastNote;
 
 
 /*****************************************************************************\
-  
-\*****************************************************************************/
+
+  \*****************************************************************************/
 
 
 void setup() {
@@ -44,7 +44,7 @@ void loop() {
   sum = 0;
   avg = 0;
   threshReached = false;
-  
+
 
   long start;
   long end;
@@ -72,19 +72,19 @@ void loop() {
   // Play Notes
 
   if (threshReached) {
-    
+
     // Run Pitch Detection
     FFT(samples, SAMPLE_SIZE, TEST_SAMPLE_FREQ);
-	  freq = minPeak(f_peaks);
-    
+    freq = minPeak(f_peaks);
+
     // freq print to serial for testing
-    Serial.printf("F[0] = %.3f\tSmpl Time = %dus\tavg = %.2f\n", freq, end-start, avg);
+    Serial.printf("F[0] = %.3f\tSmpl Time = %dus\tavg = %.2f\n", freq, end - start, avg);
 
     note = getMidiVal(freq);
 
     if (note != lastNote) {
       changeMidi(note, lastNote);
-    } else if (note != -1) {
+    } else if (note == -1) {
       sendMidi(note);
     }
 
@@ -92,29 +92,32 @@ void loop() {
 
   } else {
 
-    if (note != -1) 
-      stopMidi(note);  
+    if (note != -1) {
+      stopMidi(note);
+      note = -1;
+    }
+
   }
-  
+
 }
 
 /*****************************************************************************\
-  
-\*****************************************************************************/
+
+  \*****************************************************************************/
 
 float minPeak(float* arr) {
-	float temp = arr[0];
-	for (int i = 1; i < NUMPEAKS; i++) {
-		if (temp > arr[i])
-			temp = arr[i];
-	}
-	return temp;
+  float temp = arr[0];
+  for (int i = 1; i < NUMPEAKS; i++) {
+    if (temp > arr[i])
+      temp = arr[i];
+  }
+  return temp;
 }
 
 
 /*****************************************************************************\
-  
-\*****************************************************************************/
+
+  \*****************************************************************************/
 
 void sendMidi(int note) {
   usbMIDI.sendNoteOn(note, VELOCITY, CHANNEL);
@@ -139,5 +142,5 @@ void turnNotesOff() {
 }
 
 /*****************************************************************************\
-  
-\*****************************************************************************/
+
+  \*****************************************************************************/
