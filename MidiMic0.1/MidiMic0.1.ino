@@ -1,137 +1,99 @@
 #include "MIDITranslate.hh"
-//#include "FFT.hh"
-#include <arduinoFFT.h>
+#include <Audio.h>
+#include <Wire.h>
 
-#define SAMPLE_SIZE 1024      // Amount of samples to take before running pitch detection
-#define SAMPLE_FREQ 44100     // Sample Frequency for arduino fft
-#define THRESHHOLD 50         // Amplitude of a single sample to reach before running pitch detection
-#define ANALOG_INPUT 22       // Analog pin used to read samples
-#define OFFSET 512            // AnalogRead converts to values between 0-1024. Centers waveform around half (3.3V/2) 
-#define MICRO 0.000001        // For converting values into microseconds
-#define SAMPLE_PERIOD 1 / (SAMPLE_FREQ * MICRO) //Used to ensure sample period when sampling
-
-// Defintions for old fft function
-// May be removed 
-#define SAMPLE_SPEED 124       // Amount of time between samples. Value in microseconds. Min Value is BASE_SAMPLE_SPEED
-#define BASE_SAMPLE_SPEED 17  // Tested value of how long a single sample takes to read with no delay. Value is in microseconds
-#define TEST_SAMPLE_FREQ 1 / (SAMPLE_SPEED * MICRO) // Testing an FFT function 
-#define NUMPEAKS 2          // Number of frequancy peaks to compare 1 min, 5 max.
-
-//MIDI STUFF
-#define CHANNEL 1
 #define VELOCITY 127
-#define MIN_MIDI_NOTE 44
+#define CHANNEL 1
+
+//const int Mic = AUDIO_INPUT_LINEIN;
+const int Mic = AUDIO_INPUT_MIC;
+
+AudioInputI2S             audioInput;         // audio shield: mic or line-in
+AudioAnalyzeNoteFrequency notefreq;
+AudioAnalyzePeak           peak;
+AudioOutputI2S             audioOutput;        // audio shield: headphones & line-out
+
+AudioConnection patchCord2(audioInput, 0, notefreq, 0);
+AudioConnection patchCord3(audioInput, 0, peak, 0);
+AudioConnection patchCord4(audioInput, 0, audioOutput, 0);
+AudioConnection patchCord5(audioInput, 0, audioOutput, 1);
+
+AudioControlSGTL5000 audioShield;
+
+
 int note;
 int lastNote;
-
-double vReal[SAMPLE_SIZE];
-double vImag[SAMPLE_SIZE];
-arduinoFFT FFT = arduinoFFT(vReal, vImag, SAMPLE_SIZE, SAMPLE_FREQ);
-
-/*****************************************************************************\
-
-  \*****************************************************************************/
-
+float freq;
+float prob;
+float magnitude;
 
 void setup() {
+  AudioMemory(60);
   Serial.begin(9600);
+
+  audioShield.enable();
+  audioShield.inputSelect(Mic);
+  //audioShield.volume(0.9);
+  audioShield.micGain(50); //TODO connect gain to poteniometer
+
+  notefreq.begin(0.3);  // Ignores anything under this probability threshhold
+
   note = -1;
-  lastNote = 0;
+  lastNote = -1;
+  magnitude = 0;
+
 }
 
 void loop() {
 
-  bool threshReached;
-  double freq;
-  float sum;
-  float avg;
+  //float magnitude = 0;
+  //int note = -1;
 
-  // Reset every sample
-  sum = 0;
-  avg = 0;
-  threshReached = false;
+  if (peak.available()) {
+      magnitude = peak.read();
+  }
 
+    Serial.printf("peak %.3f\n", magnitude);
 
-  long start;
-  long end;
-  long sampleStart;
-
-  start = micros();
-
-  // Reading Samples from analog input
-
-  for (int i = 0; i < SAMPLE_SIZE; i++)
+  if (notefreq.available())
   {
-    sampleStart = micros();
-    vReal[i] = analogRead(ANALOG_INPUT) - OFFSET;
-    vImag[i] = 0;
-    sum = sum + abs(vReal[i]);
-    while ((micros() - sampleStart) < SAMPLE_PERIOD); // keeping sampling frequency consistent
-  }
-  
-  end = micros();
 
-  // Determine Threshhold
-  avg = sum / SAMPLE_SIZE;
-  if (avg > THRESHHOLD) {
-    threshReached = true;
-  }
+    freq = notefreq.read();
+    prob = notefreq.probability();
 
+    note = getMidiVal(freq);
 
+    if (peak.available()) {
+      magnitude = peak.read();
+    }
 
-  // Perform FFT and Play Note
-
-  if (threshReached) {
-
-    // Run Pitch Detection
-    FFT.Windowing(FFT_WIN_TYP_HAMMING, FFT_FORWARD);
-    FFT.Compute(FFT_FORWARD);
-    FFT.ComplexToMagnitude();
-    freq = FFT.MajorPeak(vReal, SAMPLE_SIZE, SAMPLE_FREQ);
-
-    //old fft. May Delete
-    //FFT(samples, SAMPLE_SIZE, TEST_SAMPLE_FREQ);
-    //freq = minPeak(f_peaks);
-
-
-    note = getMidiVal((float) freq);
+    Serial.printf("peak %.3f\n", magnitude);
     
-    // freq print to serial for testing
-    Serial.printf("F[0] = %.3f\tSmpl Time = %dus\tavg = %.2f\tmidiVal = %d\n", freq, end - start, avg, note);
+    if (prob > 0.9)
+    {
+      // freq print to serial for testing
+      //Serial.printf("F[0] = %.3f\t | Prob = %.3f\%\t |midiVal = %d\t |peak = %.3f\n", freq, prob, note, magnitude);
 
-    
+      if (note != lastNote && lastNote != -1) {
+        changeMidi(note, lastNote);
 
-    if (note != lastNote) {
-      changeMidi(note, lastNote);
-    } else if (note == -1) {
-      sendMidi(note);
+      } else if (note != -1 && lastNote == -1) {
+        sendMidi(note);
+
+      }
+
+    } else {
+
+      if (note != -1) {
+        stopMidi(note);
+        //Serial.printf("Note off = %d\n", note);
+        note = -1;
+      }
     }
 
     lastNote = note;
-
-  } else {
-
-    if (note != -1) {
-      stopMidi(note);
-      note = -1;
-    }
-
   }
 
-}
-
-/*****************************************************************************\
-
-  \*****************************************************************************/
-
-//Used with old fft. May Delete
-float minPeak(float* arr) {
-  float temp = arr[0];
-  for (int i = 1; i < NUMPEAKS; i++) {
-    if (temp > arr[i])
-      temp = arr[i];
-  }
-  return temp;
 }
 
 
@@ -157,7 +119,7 @@ void stopMidi(int note) {
 
 void turnNotesOff() {
   for (int i = 0; i < rangeSize; i++) {
-    usbMIDI.sendNoteOff(MIN_MIDI_NOTE + i, 0, CHANNEL);
+    usbMIDI.sendNoteOff(minMidi + i, 0, CHANNEL);
   }
 }
 
