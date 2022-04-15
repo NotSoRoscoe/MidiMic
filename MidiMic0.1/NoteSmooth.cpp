@@ -1,10 +1,12 @@
 #include "NoteSmooth.hh"
+#include <bits/stdc++.h>
+#include "KickSort.h"
 
-#define NUM_MEM_NOTES 10
+#define NUM_MEM_NOTES 5
 
 // notes are in an integer midi value form
 int memNotes[NUM_MEM_NOTES];
-int index = 0;
+int memIndex = 0;
 bool memEmpty = true;
 bool available = false;
 
@@ -15,11 +17,11 @@ void addNote(int note) {
   } else if (note != -1) {
     
     // replace older values when array is filled
-    if (index > NUM_MEM_NOTES - 1){
-      index = 0;  
+    if (memIndex > NUM_MEM_NOTES - 1){
+      memIndex = 0;  
     }
-    memNotes[index] = note;
-    index++;
+    memNotes[memIndex] = note;
+    memIndex++;
     memEmpty = false;    
   }
 }
@@ -31,12 +33,36 @@ void clearNotes() {
   memEmpty = true;
 }
 
-int smoothedNote(){
-  int sum = 0;
-  for (int i = 0; i < NUM_MEM_NOTES; i++) {
-    if (memNotes[i] != -1) {
-      sum += memNotes[i];
+int smoothedNote(int lastNote){
+    KickSort<int>::quickSort(memNotes, NUM_MEM_NOTES, KickSort_Dir::ASCENDING);
+    int max = memNotes[NUM_MEM_NOTES - 1];
+ 
+    int t = max + 1;
+    int count[t];
+    for (int i = 0; i < t; i++)
+        count[i] = 0;
+ 
+
+    for (int i = 0; i < NUM_MEM_NOTES; i++) {
+      if (memNotes[i] == -1) {
+        //ignore
+      } else {
+        count[memNotes[i]]++;
+      }
     }
-  }
-  return sum/NUM_MEM_NOTES;
+ 
+    // mode is the index with maximum count
+    int mode = 0;
+    int k = count[0];
+    for (int i = 1; i < t; i++) {
+        if (count[i] > k) {
+            k = count[i];
+            mode = i;
+        }
+    }
+    
+    if (mode == 0)
+      mode = lastNote;
+      
+    return mode;
 }

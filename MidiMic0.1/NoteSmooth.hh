@@ -3,6 +3,6 @@
 
   void addNote(int note);
   void clearNotes();
-  int smoothedNote();
+  int smoothedNote(int lastNote);
 
 #endif

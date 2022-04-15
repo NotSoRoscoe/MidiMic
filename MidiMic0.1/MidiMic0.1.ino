@@ -8,6 +8,8 @@
 
 //const int Mic = AUDIO_INPUT_LINEIN;
 const int Mic = AUDIO_INPUT_MIC;
+const int BUTTON_PIN = 14;
+const int LED_PIN = 22;
 
 AudioInputI2S             audioInput;         // audio shield: mic or line-in
 AudioAnalyzeNoteFrequency notefreq;
@@ -24,6 +26,7 @@ AudioControlSGTL5000 audioShield;
 
 int note;
 int lastNote;
+bool noteSmoothingOn;
 float freq;
 float prob;
 float magnitude;
@@ -36,17 +39,16 @@ void setup() {
   audioShield.inputSelect(Mic);
   audioShield.micGain(50); 
 
-  notefreq.begin(0.3);  
+  notefreq.begin(0.3);
 
   note = -1;
   lastNote = -1;
   magnitude = 0;
 
+  noteSmoothingOn = false;
 }
 
 void loop() {
-  
-  // possible trigger to send midi signal and/or assign velocity
   if (peak.available()) {
       magnitude = peak.read();
   }
@@ -63,14 +65,15 @@ void loop() {
 
     note = getMidiVal(freq);
 
-    addNote(note);
-
-    note = smoothedNote();
+    if (noteSmoothingOn) {
+        addNote(note);
+        note = smoothedNote(lastNote);
+    }
     
     if (prob > 0.90)
     {
       // freq print to serial for testing
-      //Serial.printf("F[0] = %.3f\t | Prob = %.3f\%\t |midiVal = %d\t\n", freq, prob, note);
+      Serial.printf("F[0] = %.3f\t | Prob = %.3f\%\t |midiVal = %d\t\n", freq, prob, note);
 
       if (note != lastNote) {
 
