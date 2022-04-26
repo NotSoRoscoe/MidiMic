@@ -51,7 +51,7 @@ int smoothedNote(int lastNote){
       }
     }
  
-    // mode is the index with maximum count
+    // Finding mode of the array
     int mode = 0;
     int k = count[0];
     for (int i = 1; i < t; i++) {
@@ -62,7 +62,7 @@ int smoothedNote(int lastNote){
     }
     
     if (mode == 0)
-      mode = lastNote;
+      mode = -1;
       
     return mode;
 }
